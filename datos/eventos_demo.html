@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <!-- Metadatos del documento y título visible en la pestaña del navegador. -->
+    <meta charset="utf-8">
+    <title>Agenda turística de demostración</title>
+  </head>
+  <body>
+    <!-- Contenedor general: su id permite demostrar find_all por identificador. -->
+    <div id="agenda-eventos" class="agenda">
+      <!-- Cada article representa una tarjeta; data-* guarda metadatos propios. -->
+      <article class="evento destacado" id="evento-1" data-tipo="cultural" data-gratuito="si">
+        <h2><span>Festival de Tango</span></h2>
+        <time datetime="2026-09-19">19 de septiembre</time>
+        <span class="direccion">Usina del Arte, Buenos Aires</span>
+        <a href="/es/evento/festival-tango" title="Ver detalle">Ver más</a>
+        <img src="/imagenes/tango.jpg" alt="Pareja bailando tango">
+      </article>
+      <!-- Segunda tarjeta con URL absoluta y un conjunto diferente de atributos. -->
+      <article class="evento" id="evento-2" data-tipo="gastronomico">
+        <h2>Feria Gastronómica</h2>
+        <span class="fecha">26 y 27 de septiembre</span>
+        <span class="direccion">La Rural, Buenos Aires</span>
+        <a href="https://example.org/feria" data-id="feria-26">Entradas</a>
+        <img src="/imagenes/feria.jpg" alt="Puestos de comida">
+      </article>
+    </div>
+    <!-- Tabla mínima incluida para practicar table, tr y td según N09. -->
+    <table id="resumen"><tr><td>2 eventos</td></tr></table>
+  </body>
+</html>
