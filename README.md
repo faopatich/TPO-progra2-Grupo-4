@@ -20,6 +20,37 @@ python main.py --en-vivo --destino "Buenos Aires"
 
 Si una fuente externa falla, el programa muestra un aviso y conserva la demostración local.
 
+## API HTTP y Postman
+
+Iniciar el servidor desde la raíz del proyecto:
+
+```powershell
+uvicorn plataforma_turistica.api:app --reload
+```
+
+La API queda disponible en `http://127.0.0.1:8000`. FastAPI publica una interfaz
+interactiva en `http://127.0.0.1:8000/docs` y el contrato OpenAPI en
+`http://127.0.0.1:8000/openapi.json`.
+
+Endpoints para Postman:
+
+| Método | URL | Función |
+| --- | --- | --- |
+| GET | `http://127.0.0.1:8000/` | comprobar el estado de la API |
+| GET | `http://127.0.0.1:8000/destinos` | listar destinos configurados |
+| GET | `http://127.0.0.1:8000/analisis/Buenos%20Aires` | analizar mediante parámetros de URL |
+| GET | `http://127.0.0.1:8000/analisis/Buenos%20Aires?en_vivo=true` | intentar fuentes externas |
+| POST | `http://127.0.0.1:8000/analisis` | analizar mediante un cuerpo JSON |
+
+Cuerpo para el POST:
+
+```json
+{
+  "destino": "Mendoza",
+  "en_vivo": false
+}
+```
+
 ## Pruebas
 
 ```powershell
@@ -29,6 +60,8 @@ python -m unittest discover -v
 ## Arquitectura
 
 - `main.py`: interfaz de consola.
+- `api.py`: endpoints FastAPI para Postman y documentación OpenAPI.
+- `esquemas.py`: contratos Pydantic de entrada y salida.
 - `servicio.py`: coordina el caso de uso.
 - `config.py` y `destinos.py`: listas, diccionarios y destinos.
 - `normalizacion.py`: cadenas y limpieza.
