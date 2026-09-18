@@ -43,11 +43,11 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(respuesta.json()["destino"], "Mendoza")
 
-    def test_destino_inexistente(self):
-        """Un destino fuera del catálogo debe producir HTTP 404, no un error 500."""
+    def test_destino_libre(self):
+        """Un destino fuera del catálogo se acepta en modo demo."""
         respuesta = self.cliente.get("/analisis/Atlantida")
-        self.assertEqual(respuesta.status_code, 404)
-        self.assertIn("Destino desconocido", respuesta.json()["detail"])
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.json()["destino"], "Atlantida")
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 
 from .config import DESTINOS
-from .normalizacion import normalizar_texto
+from .normalizacion import limpiar_nombre_destino, normalizar_texto
 
 
 def listar_destinos() -> list[str]:
@@ -22,14 +22,20 @@ def obtener_destino(nombre: str) -> dict:
     Returns:
         Diccionario independiente con nombre, coordenadas, zona y ocupación base.
     Raises:
-        ValueError: Si el destino no se encuentra en la configuración.
+        Un diccionario con la configuración del destino. Si no está en el
+        catálogo, devuelve una configuración básica para permitir nombres libres.
     """
     # Se normaliza la entrada para compararla con las claves de DESTINOS.
     clave = normalizar_texto(nombre)
     if clave not in DESTINOS:
-        # Mostrar opciones válidas ayuda a corregir el dato sin mirar el código.
-        disponibles = ", ".join(listar_destinos())
-        raise ValueError(f"Destino desconocido. Opciones: {disponibles}")
+        # Los datos específicos se completan con geocodificación cuando se usa
+        # el modo en vivo; el modo demo no necesita coordenadas.
+        return {
+            "nombre": limpiar_nombre_destino(nombre),
+            "coordenadas": None,
+            "zona": "No informada",
+            "ocupacion_base": 50.0,
+        }
 
     # deepcopy impide que quien recibe el resultado modifique la configuración.
     return deepcopy(DESTINOS[clave])

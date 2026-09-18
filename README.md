@@ -51,6 +51,12 @@ Cuerpo para el POST:
 }
 ```
 
+El campo `destino` acepta texto libre. Los destinos incluidos en `config.py`
+conservan sus coordenadas y ocupación base. Para cualquier otro destino, al
+usar `en_vivo: true` la API consulta la geocodificación pública de Open-Meteo y
+usa las coordenadas encontradas para consultar el clima. En modo demo no se
+realizan solicitudes de red y se utiliza una ocupación base genérica.
+
 ## Pruebas
 
 ```powershell
@@ -69,6 +75,7 @@ python -m unittest discover -v
 - `clasificacion.py`: reglas y recomendaciones.
 - `eventos.py`: `requests`, BeautifulSoup, robots.txt, frecuencia, atributos y variantes de `find_all`.
 - `clima.py`: cliente GET de Open-Meteo y parseo JSON.
+- `geocodificacion.py`: convierte destinos escritos libremente en coordenadas.
 - `reputacion.py`: conteo básico de opinión.
 - `etl.py`, `visualizacion.py` y `boletines.py`: límites de módulos previstos por N01; su ampliación con Pandas, gráficos y SMTP pertenece a N19-N24.
 

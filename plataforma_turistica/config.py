@@ -31,6 +31,7 @@ URLS_EVENTOS = [
 # La URL privada es ficticia y solo sirve para la comparación académica de N13.
 ENDPOINTS_API = {
     "clima_publica": "https://api.open-meteo.com/v1/forecast",
+    "geocodificacion_publica": "https://geocoding-api.open-meteo.com/v1/search",
     "reservas_privada_ejemplo": "https://api.interna.example/reservas",
 }
 PALABRAS_CLAVE = ["festival", "feria", "museo", "gastronomía", "tango"]

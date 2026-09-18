@@ -10,6 +10,7 @@ from .clima import Clima, ErrorClima, consultar_clima
 from .config import PALABRAS_CLAVE, URLS_EVENTOS
 from .destinos import obtener_destino
 from .eventos import descargar_html, extraer_eventos
+from .geocodificacion import ErrorGeocodificacion, geocodificar_destino
 from .indicadores import (
     calcular_ocupacion_estimada,
     calcular_prioridad_comercial,
@@ -86,7 +87,8 @@ def ejecutar_analisis(nombre_destino: str, usar_red: bool = False) -> ResultadoA
     La función orquesta módulos especializados: no implementa internamente el
     scraping, las fórmulas ni la clasificación.
     """
-    # Validar primero evita hacer trabajo de red para un destino inexistente.
+    # Los destinos conocidos usan sus datos configurados; los demás se aceptan
+    # libremente y obtienen coordenadas solo cuando se solicita modo en vivo.
     destino = obtener_destino(nombre_destino)
     advertencias: list[str] = []
 
@@ -101,7 +103,15 @@ def ejecutar_analisis(nombre_destino: str, usar_red: bool = False) -> ResultadoA
         try:
             # Las coordenadas configuradas se envían como parámetros a Open-Meteo.
             coordenadas = destino["coordenadas"]
+            if coordenadas is None:
+                ubicacion = geocodificar_destino(destino["nombre"])
+                coordenadas = {
+                    "latitud": ubicacion.latitud,
+                    "longitud": ubicacion.longitud,
+                }
             clima = consultar_clima(coordenadas["latitud"], coordenadas["longitud"])
+        except ErrorGeocodificacion as error:
+            raise ValueError(str(error)) from error
         except ErrorClima as error:
             # Valores moderados de demostración mantienen operativo el análisis.
             clima = Clima(temperatura=20, probabilidad_lluvia=20, codigo=0, fuente="demo")
