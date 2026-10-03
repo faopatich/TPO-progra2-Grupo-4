@@ -57,11 +57,6 @@ usar `en_vivo: true` la API consulta la geocodificación pública de Open-Meteo 
 usa las coordenadas encontradas para consultar el clima. En modo demo no se
 realizan solicitudes de red y se utiliza una ocupación base genérica.
 
-## Pruebas
-
-```powershell
-python -m unittest discover -v
-```
 
 ## Arquitectura
 
