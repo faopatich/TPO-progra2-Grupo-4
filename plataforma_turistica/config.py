@@ -45,3 +45,6 @@ CRITERIOS_RECOMENDACION = {
     "riesgo_climatico": {"probabilidad_lluvia_minima": 70},
     "oportunidad": {"ocupacion_minima": 50, "menciones_minimas": 3},
 }
+
+# Solo Buenos Aires tiene una fuente web configurada. No se reutiliza en otras ciudades.
+FUENTES_EVENTOS = {"buenos aires": URLS_EVENTOS[0]}

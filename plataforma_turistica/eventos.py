@@ -31,6 +31,8 @@ class Evento:
     clases_html: tuple[str, ...]
     identificador_html: str | None
     datos_html: dict[str, str]
+    destino: str = "Buenos Aires"
+    fuente: str = "web"
 
 
 def _robots_permite(url: str, session: requests.Session, timeout: int) -> bool:
@@ -112,7 +114,9 @@ def _valor_texto(contenedor: Tag, selectores: tuple[str, ...], defecto: str) -> 
     return defecto
 
 
-def extraer_eventos(html: str, url_base: str) -> list[Evento]:
+def extraer_eventos(
+    html: str, url_base: str, destino_base: str = "Buenos Aires", fuente: str = "web"
+) -> list[Evento]:
     """Convierte tarjetas HTML en una lista estructurada de eventos.
 
     Tolera variantes comunes de maquetado y atributos ausentes. Las URLs relativas
@@ -152,6 +156,9 @@ def extraer_eventos(html: str, url_base: str) -> list[Evento]:
         imagen_tag = tarjeta.find("img")
         imagen = urljoin(url_base, imagen_tag.get("src")) if imagen_tag and imagen_tag.get("src") else None
         fecha = _valor_texto(tarjeta, ("time", ".fecha", ".date"), "")
+        etiqueta_fecha = tarjeta.find("time")
+        if etiqueta_fecha and etiqueta_fecha.get("datetime"):
+            fecha = etiqueta_fecha["datetime"]
         if not fecha:
             fecha = extraer_fecha(tarjeta.get_text(" ", strip=True))
         direccion = _valor_texto(tarjeta, (".direccion", ".address"), "No informada")
@@ -159,6 +166,8 @@ def extraer_eventos(html: str, url_base: str) -> list[Evento]:
         # El diccionario data_html conserva atributos personalizados data-*.
         eventos.append(
             Evento(
+                destino=tarjeta.get("data-destino", destino_base),
+                fuente=fuente,
                 titulo=limpiar_titulo_evento(titulo),
                 fecha=fecha,
                 direccion=limpiar_direccion(direccion),

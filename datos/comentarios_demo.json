@@ -1,0 +1,30 @@
+[
+  {
+    "destino": "Buenos Aires",
+    "comentario": "Excelente ubicación y personal amable"
+  },
+  {
+    "destino": "Buenos Aires",
+    "comentario": "Mucho ruido durante la noche"
+  },
+  {
+    "destino": "Buenos Aires",
+    "comentario": "El festival fue increíble, lo recomiendo"
+  },
+  {
+    "destino": "Mar del Plata",
+    "comentario": "Buen festival y hotel limpio"
+  },
+  {
+    "destino": "Mar del Plata",
+    "comentario": null
+  },
+  {
+    "destino": "Mendoza",
+    "comentario": "Excelente feria, recomiendo la visita"
+  },
+  {
+    "destino": "Mendoza",
+    "comentario": "Demora en el ingreso"
+  }
+]

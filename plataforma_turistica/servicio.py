@@ -1,160 +1,209 @@
-"""Orquestación del caso de uso sin mezclar responsabilidades."""
-
-from __future__ import annotations
-
+"""Coordina módulos; main y FastAPI reutilizan el mismo análisis."""
 from dataclasses import dataclass
 from pathlib import Path
+import pandas as pd
+import requests
 
-from .clasificacion import clasificar_destino, recomendar_accion
-from .clima import Clima, ErrorClima, consultar_clima
-from .config import PALABRAS_CLAVE, URLS_EVENTOS
+from .clima import consultar_clima, ErrorClima
+from .config import FUENTES_EVENTOS, PALABRAS_CLAVE
+from .datos import RAIZ, cargar_archivos, preparar_demo
 from .destinos import obtener_destino
-from .eventos import descargar_html, extraer_eventos
-from .geocodificacion import ErrorGeocodificacion, geocodificar_destino
-from .indicadores import (
-    calcular_ocupacion_estimada,
-    calcular_prioridad_comercial,
-    calcular_variacion_demanda,
-    contar_menciones,
-)
-from .reputacion import analizar_comentarios
-from .visualizacion import barra_textual
-
-# Ruta absoluta calculada desde este módulo, independiente de la carpeta desde la
-# que el usuario ejecute el programa.
-ARCHIVO_HTML_DEMO = Path(__file__).resolve().parent.parent / "datos" / "eventos_demo.html"
-
-# Opiniones controladas para demostrar reputación sin depender de una plataforma.
-COMENTARIOS_DEMO = [
-    "Excelente ubicación y personal amable",
-    "Mucho ruido durante la noche",
-    "El festival fue increíble, lo recomiendo",
-    "La habitación estaba limpia",
-]
+from .eventos import descargar_html, extraer_eventos, ScrapingNoPermitido
+from .geocodificacion import geocodificar_destino, ErrorGeocodificacion
+from .indicadores import calcular_ocupacion_estimada, calcular_variacion_demanda, contar_menciones, calcular_prioridad_comercial
+from .clasificacion import clasificar_destino, recomendar_accion
+from .normalizacion import normalizar_texto
+from .etl import limpiar_tablas, limpiar_eventos, integrar_tablas, resumir_reputacion, combinar_historico, eventos_a_registros
 
 
-@dataclass(frozen=True)
-class ResultadoAnalisis:
-    """Agrupa todas las salidas producidas para un destino.
+def inicio_semana(fecha=None) -> pd.Timestamp:
+    """Agrupa por semana de lunes a domingo."""
+    dia = pd.Timestamp(fecha if fecha is not None else pd.Timestamp.today()).normalize()
+    if pd.isna(dia):
+        raise ValueError("La fecha no es válida")
+    return dia - pd.Timedelta(days=dia.dayofweek)
 
-    La dataclass genera el constructor automáticamente. ``frozen=True`` hace que
-    el resultado no pueda cambiar después de finalizar los cálculos.
+
+def construir_tablero(nombres=None, usar_red=False, fecha=None, carpeta_datos=None,
+                      carpeta_demo=None, proveedor="open-meteo") -> dict:
+    """Extrae fuentes, limpia datos y calcula una fila por destino.
+
+    En vivo no reemplaza clima ni eventos fallidos por valores inventados.
+    El catálogo, hoteles, comentarios e histórico demo se identifican como tales.
     """
+    semana = inicio_semana(fecha)
+    if usar_red and semana != inicio_semana():
+        raise ValueError("El clima en vivo es actual: use la semana actual o modo demo.")
+    demo = carpeta_datos is None
+    if demo:
+        carpeta = preparar_demo(Path(carpeta_demo or RAIZ / "salida" / "entradas_demo"), semana)
+    else:
+        carpeta = Path(carpeta_datos)
+    tablas = limpiar_tablas(cargar_archivos(carpeta))
+    catalogo = tablas["destinos"]
+    if nombres:
+        claves = [normalizar_texto(nombre) for nombre in nombres]
+        for nombre, clave in zip(nombres, claves):
+            if not clave:
+                raise ValueError("El destino no puede estar vacío")
+            if clave not in catalogo["clave"].values:
+                destino = obtener_destino(nombre)
+                coordenadas = destino["coordenadas"] or {}
+                extra = pd.DataFrame([{
+                    "clave": clave, "destino": destino["nombre"], "zona": destino["zona"],
+                    "latitud": coordenadas.get("latitud"), "longitud": coordenadas.get("longitud"),
+                    "ocupacion_base": None,
+                }])
+                catalogo = pd.concat([catalogo, extra], ignore_index=True)
+        catalogo = catalogo.loc[catalogo["clave"].isin(claves)].copy()
+    if catalogo.empty:
+        raise ValueError("No hay destinos válidos para analizar")
+    tablas["destinos"] = catalogo
+    advertencias = []
+    registros = []
+    cobertura = {}
+    fuentes = {}
+    if not usar_red:
+        html = (carpeta / "eventos.html").read_text(encoding="utf-8")
+        fuente = "demo" if demo else "archivo del usuario"
+        # El HTML local usa data-destino; no se asigna una agenda a todas las ciudades.
+        eventos = extraer_eventos(html, "https://example.org/", destino_base="", fuente=fuente)
+        registros = eventos_a_registros(eventos)
+        claves_archivo = {normalizar_texto(evento.destino) for evento in eventos}
+        for clave in catalogo["clave"]:
+            cobertura[clave] = clave in claves_archivo
+            fuentes[clave] = fuente if cobertura[clave] else "sin datos"
+    else:
+        for _, destino in catalogo.iterrows():
+            clave = destino["clave"]
+            cobertura[clave] = False
+            fuentes[clave] = "sin datos"
+            url = FUENTES_EVENTOS.get(clave)
+            if not url:
+                advertencias.append(f"{destino['destino']}: no hay fuente web de eventos configurada.")
+            else:
+                try:
+                    html = descargar_html(url)
+                    eventos = extraer_eventos(html, url, destino["destino"], "web")
+                    if not eventos:
+                        raise ValueError("La página no contiene tarjetas reconocidas; revisar selectores HTML.")
+                    registros.extend(eventos_a_registros(eventos))
+                    cobertura[clave] = True
+                    fuentes[clave] = url
+                except (requests.RequestException, ScrapingNoPermitido, ValueError) as error:
+                    # No incluir URLs con credenciales en los avisos.
+                    advertencias.append(f"{destino['destino']}: agenda no disponible ({type(error).__name__}).")
+    # Un cambio de HTML que deje todas las fechas sin interpretar no equivale a cero eventos.
+    for clave in catalogo["clave"]:
+        propios = [registro for registro in registros if normalizar_texto(registro["destino"]) == clave]
+        fechas = pd.to_datetime([registro["fecha"] for registro in propios], errors="coerce")
+        if propios and fechas.isna().all():
+            cobertura[clave] = False
+            advertencias.append(f"{clave}: no se pudieron interpretar las fechas; revisar HTML.")
+    eventos = limpiar_eventos(registros, semana)
+    if registros and len(eventos) < len(registros):
+        advertencias.append("Se excluyeron eventos duplicados, sin fecha ISO válida o fuera de la semana.")
+    tablero = integrar_tablas(tablas, eventos, semana)
+    reputacion = resumir_reputacion(tablas["comentarios"])
+    filas = []
+    for _, destino in tablero.iterrows():
+        clave = destino["clave"]
+        avisos = []
+        temperatura = None
+        lluvia = None
+        fuente_clima = "sin datos"
+        if not usar_red:
+            temperatura, lluvia, fuente_clima = 20.0, 20.0, "demo"
+        else:
+            try:
+                latitud, longitud = destino["latitud"], destino["longitud"]
+                if pd.isna(latitud) or pd.isna(longitud):
+                    coordenadas = geocodificar_destino(destino["destino"])
+                    latitud, longitud = coordenadas.latitud, coordenadas.longitud
+                if proveedor == "openweathermap":
+                    from .practica_api import consultar_clima_autenticado
+                    clima = consultar_clima_autenticado(latitud, longitud)
+                else:
+                    clima = consultar_clima(latitud, longitud)
+                temperatura, lluvia, fuente_clima = clima.temperatura, clima.probabilidad_lluvia, clima.fuente
+            except (ErrorClima, ErrorGeocodificacion) as error:
+                avisos.append(str(error))
+        textos = tablas["comentarios"].loc[tablas["comentarios"]["clave"].eq(clave), "comentario"].tolist()
+        textos += eventos.loc[eventos["clave"].eq(clave), "titulo"].tolist()
+        menciones = contar_menciones(textos, PALABRAS_CLAVE)
+        opinion = reputacion.get(clave, {"positivas": 0, "negativas": 0, "neutras": 0})
+        ocupacion = variacion = prioridad = None
+        clasificacion = "datos insuficientes"
+        recomendacion = "Completar fuentes del destino antes de recomendar acciones."
+        if pd.notna(destino["ocupacion_base"]) and lluvia is not None and cobertura.get(clave, False):
+            ocupacion = calcular_ocupacion_estimada(
+                destino["ocupacion_base"], int(destino["eventos"]),
+                opinion["positivas"], opinion["negativas"], lluvia,
+            )
+            anterior = destino["ocupacion_anterior"]
+            if pd.notna(anterior) and anterior > 0:
+                variacion = calcular_variacion_demanda(ocupacion, anterior)
+                prioridad = calcular_prioridad_comercial(ocupacion, variacion, menciones)
+                clasificacion = clasificar_destino(ocupacion, variacion, menciones, lluvia)
+                recomendacion = recomendar_accion(clasificacion)
+            else:
+                avisos.append("Sin ocupación histórica anterior mayor que cero para comparar.")
+        else:
+            avisos.append("Faltan base de ocupación, clima o cobertura de eventos del destino.")
+        fila = destino.to_dict()
+        fila.update(
+            fecha=semana, temperatura=temperatura, lluvia=lluvia, ocupacion=ocupacion,
+            variacion=variacion, menciones=menciones, prioridad=prioridad,
+            positivas=opinion["positivas"], negativas=opinion["negativas"],
+            clasificacion=clasificacion, recomendacion=recomendacion,
+            fuente_clima=fuente_clima, fuente_eventos=fuentes.get(clave, "sin datos"),
+            fuente_datos="demo académico" if demo else "archivos del usuario",
+            advertencias="; ".join(avisos),
+        )
+        filas.append(fila)
+    tablero = pd.DataFrame(filas)
+    for columna in ["temperatura", "lluvia", "ocupacion", "variacion", "prioridad"]:
+        tablero[columna] = pd.to_numeric(tablero[columna], errors="coerce")
+    tablero["fecha"] = pd.to_datetime(tablero["fecha"])
+    historico = tablas["historico"].loc[tablas["historico"]["clave"].isin(tablero["clave"])]
+    return {"tablero": tablero, "eventos": eventos,
+            "historico": combinar_historico(historico, tablero), "advertencias": advertencias}
 
+
+@dataclass
+class ResultadoAnalisis:
     destino: str
     eventos: int
-    temperatura: float
-    lluvia: float
-    ocupacion: float
-    variacion: float
+    temperatura: float | None
+    lluvia: float | None
+    ocupacion: float | None
+    variacion: float | None
     menciones: int
-    prioridad: float
+    prioridad: float | None
     clasificacion: str
     recomendacion: str
     advertencias: tuple[str, ...] = ()
+    fuente_clima: str = ""
+    fuente_eventos: str = ""
+    fuente_datos: str = ""
 
     def como_texto(self) -> str:
-        """Convierte el resultado en un informe multilínea para la terminal."""
-        # Cada f-string controla la etiqueta y el formato decimal de un indicador.
-        lineas = [
-            f"Destino: {self.destino}",
-            f"Eventos encontrados: {self.eventos}",
-            f"Clima: {self.temperatura:.1f} °C | lluvia {self.lluvia:.0f}%",
-            f"Ocupación estimada: {self.ocupacion:.1f}% {barra_textual(self.ocupacion)}",
-            f"Variación de demanda: {self.variacion:+.1f}%",
-            f"Menciones relevantes: {self.menciones}",
-            f"Prioridad comercial: {self.prioridad:.1f}/100",
-            f"Clasificación: {self.clasificacion}",
-            f"Recomendación: {self.recomendacion}",
-        ]
-
-        # Las advertencias solo aparecen si falló alguna fuente externa.
-        lineas.extend(f"Aviso: {aviso}" for aviso in self.advertencias)
-        return "\n".join(lineas)
+        return (f"{self.destino}: {self.clasificacion}\n"
+                f"Ocupación estimada: {self.ocupacion} | variación: {self.variacion}\n"
+                f"Recomendación: {self.recomendacion}\n"
+                f"Fuentes: {self.fuente_clima}; {self.fuente_eventos}; {self.fuente_datos}\n"
+                + "\n".join(self.advertencias))
 
 
 def ejecutar_analisis(nombre_destino: str, usar_red: bool = False) -> ResultadoAnalisis:
-    """Ejecuta el flujo completo de análisis turístico hasta N13.
-
-    Args:
-        nombre_destino: Destino configurado que se desea procesar.
-        usar_red: Si es True intenta agenda y clima reales; si es False usa demo.
-    Returns:
-        Un ``ResultadoAnalisis`` listo para mostrar o reutilizar.
-    Raises:
-        ValueError: Si el destino solicitado no existe.
-
-    La función orquesta módulos especializados: no implementa internamente el
-    scraping, las fórmulas ni la clasificación.
-    """
-    # Los destinos conocidos usan sus datos configurados; los demás se aceptan
-    # libremente y obtienen coordenadas solo cuando se solicita modo en vivo.
-    destino = obtener_destino(nombre_destino)
-    advertencias: list[str] = []
-
-    # En modo en vivo se intentan ambas fuentes por separado. Si una falla, cada
-    # except conserva una alternativa local y registra el motivo para el usuario.
-    if usar_red:
-        try:
-            html = descargar_html(URLS_EVENTOS[0])
-        except Exception as error:  # el programa conserva una demostración útil ante fallas externas
-            html = ARCHIVO_HTML_DEMO.read_text(encoding="utf-8")
-            advertencias.append(f"agenda en vivo no disponible; se usó HTML local ({error})")
-        try:
-            # Las coordenadas configuradas se envían como parámetros a Open-Meteo.
-            coordenadas = destino["coordenadas"]
-            if coordenadas is None:
-                ubicacion = geocodificar_destino(destino["nombre"])
-                coordenadas = {
-                    "latitud": ubicacion.latitud,
-                    "longitud": ubicacion.longitud,
-                }
-            clima = consultar_clima(coordenadas["latitud"], coordenadas["longitud"])
-        except ErrorGeocodificacion as error:
-            raise ValueError(str(error)) from error
-        except ErrorClima as error:
-            # Valores moderados de demostración mantienen operativo el análisis.
-            clima = Clima(temperatura=20, probabilidad_lluvia=20, codigo=0, fuente="demo")
-            advertencias.append(str(error))
-    else:
-        # El modo predeterminado es determinista y funciona en el aula sin red.
-        html = ARCHIVO_HTML_DEMO.read_text(encoding="utf-8")
-        clima = Clima(temperatura=20, probabilidad_lluvia=20, codigo=0, fuente="demo")
-
-    # Extracción y reputación producen las entradas necesarias para las métricas.
-    eventos = extraer_eventos(html, URLS_EVENTOS[0])
-    reputacion = analizar_comentarios(COMENTARIOS_DEMO)
-
-    # Se combinan títulos y comentarios para buscar menciones comerciales.
-    textos = [evento.titulo for evento in eventos] + COMENTARIOS_DEMO
-    menciones = contar_menciones(textos, PALABRAS_CLAVE)
-
-    # Los cálculos se ejecutan en orden porque variación y prioridad dependen del
-    # valor de ocupación que se acaba de estimar.
-    ocupacion = calcular_ocupacion_estimada(
-        destino["ocupacion_base"],
-        len(eventos),
-        reputacion["positivas"],
-        reputacion["negativas"],
-        clima.probabilidad_lluvia,
-    )
-    variacion = calcular_variacion_demanda(ocupacion, destino["ocupacion_base"])
-    prioridad = calcular_prioridad_comercial(ocupacion, variacion, menciones)
-    clasificacion = clasificar_destino(
-        ocupacion, variacion, menciones, clima.probabilidad_lluvia
-    )
-
-    # Finalmente se empaquetan datos y alertas en un único objeto inmutable.
-    return ResultadoAnalisis(
-        destino=destino["nombre"],
-        eventos=len(eventos),
-        temperatura=clima.temperatura,
-        lluvia=clima.probabilidad_lluvia,
-        ocupacion=ocupacion,
-        variacion=variacion,
-        menciones=menciones,
-        prioridad=prioridad,
-        clasificacion=clasificacion,
-        recomendacion=recomendar_accion(clasificacion),
-        advertencias=tuple(advertencias),
-    )
+    """Mantiene el contrato usado por GET y POST; no envía correos desde la API."""
+    datos = construir_tablero([nombre_destino], usar_red=usar_red)
+    fila = datos["tablero"].iloc[0]
+    valores = {}
+    for campo in ["destino", "eventos", "temperatura", "lluvia", "ocupacion",
+                  "variacion", "menciones", "prioridad", "clasificacion", "recomendacion",
+                  "fuente_clima", "fuente_eventos", "fuente_datos"]:
+        valor = fila[campo]
+        valores[campo] = None if pd.isna(valor) else valor
+    avisos = datos["advertencias"] + ([fila["advertencias"]] if fila["advertencias"] else [])
+    return ResultadoAnalisis(**valores, advertencias=tuple(avisos))

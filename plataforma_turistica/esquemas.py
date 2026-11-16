@@ -38,13 +38,17 @@ class RespuestaAnalisis(BaseModel):
 
     destino: str
     eventos: int
-    temperatura: float
-    lluvia: float
-    ocupacion: float
-    variacion: float
+    temperatura: float | None
+    lluvia: float | None
+    ocupacion: float | None
+    variacion: float | None
     menciones: int
-    prioridad: float
+    prioridad: float | None
     clasificacion: str
     recomendacion: str
     # default_factory crea una lista nueva por respuesta y evita compartir estado.
     advertencias: list[str] = Field(default_factory=list)
+
+    fuente_clima: str = ""
+    fuente_eventos: str = ""
+    fuente_datos: str = ""

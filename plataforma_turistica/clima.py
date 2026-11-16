@@ -74,7 +74,7 @@ def consultar_clima(
         # Las conversiones garantizan tipos numéricos consistentes.
         return Clima(
             temperatura=float(actual["temperature_2m"]),
-            probabilidad_lluvia=float(probabilidades[0] or 0),
+            probabilidad_lluvia=float(probabilidades[0]),
             codigo=int(actual["weather_code"]),
         )
     except (requests.RequestException, KeyError, TypeError, ValueError, IndexError) as error:
