@@ -18,7 +18,7 @@ from .servicio import ejecutar_analisis
 # FastAPI crea la aplicación ASGI y genera documentación OpenAPI automáticamente.
 app = FastAPI(
     title="API de Analítica Turística",
-    description="Plataforma académica modular implementada hasta N13.",
+    description="Plataforma académica modular con ETL, exportaciones y boletín semanal.",
     version="1.0.0",
 )
 
