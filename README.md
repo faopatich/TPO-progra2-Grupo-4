@@ -73,12 +73,6 @@ Para Gmail, activar la verificación en dos pasos y generar una **contraseña de
 
 `.env` contiene credenciales y está excluido de Git: cada integrante debe crear su propio archivo y no compartirlo. Si ya existe `.env`, editarlo directamente y **no volver a copiar** `.env.example` encima. `OPENWEATHER_API_KEY` solo es necesaria si se utiliza OpenWeatherMap; Open-Meteo no requiere esa clave.
 
-### Protocolos y envío semanal
-
-El proyecto usa `EmailMessage` para preparar el mensaje y `smtplib` con **SMTP** para enviarlo. **POP** e **IMAP** se usan para recibir o consultar mensajes y no son necesarios para el envío. Para Gmail se usa SSL con el puerto 465 y una contraseña de aplicación; el proyecto no implementa OAuth.
-
-Para automatizar un envío semanal en Windows, crear una tarea en el Programador de tareas con un desencadenador semanal. Como acción, elegir el ejecutable `python.exe` del entorno `.venv`, indicar `main.py --destino "CABA"` como argumentos y establecer la carpeta raíz del proyecto en **Iniciar en**. Configurar primero `.env`, los archivos de datos e Internet, y comprobar la recepción del mensaje y los adjuntos. Cada ejecución intenta un envío nuevo. El programa no crea la tarea automáticamente.
-
 ## Ejecutar el análisis
 
 Para generar los reportes de CABA **sin enviar correo**:
@@ -282,6 +276,6 @@ Los nombres de módulos de la tabla se encuentran en `plataforma_turistica/`; lo
 | N22 | Agrupaciones, fechas, uniones y comparación | `etl.py`, `referencias.py`, `ocupacion.py`. |
 | N23 | Gráficos con Pandas | `visualizacion.py`. |
 | N24 | Correo, adjuntos y SMTP | `boletines.py`, `main.py`, `api.py` y la sección de correo de este README. |
-| N25 | SMTP, POP, IMAP y acceso a Gmail | `boletines.py` y la sección de correo de este README. |
+| N25 | SMTP, POP, IMAP y acceso a Gmail | `boletines.py` y la configuración de correo de este README; queda pendiente documentar POP e IMAP. |
 
-Para la demostración final se debe registrar la inspección manual del HTML y verificar la entrega real de un correo con sus adjuntos. El envío automático semanal requiere configurar el Programador de tareas de Windows como se explica en la sección de correo de este README. Las fuentes externas pueden cambiar o estar temporalmente no disponibles.
+Para la demostración final se debe registrar la inspección manual del HTML y verificar la entrega real de un correo con sus adjuntos. El envío automático semanal requiere configurar el Programador de tareas de Windows. Las fuentes externas pueden cambiar o estar temporalmente no disponibles.
