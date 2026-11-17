@@ -32,3 +32,31 @@ def analizar_comentarios(comentarios: list[str]) -> dict[str, int]:
         else:
             resultado["neutras"] += 1
     return resultado
+
+
+
+def analizar_resenas_airbnb(ruta, fecha_captura, dias=90):
+    """Resume reseñas reales de CABA sin guardar nombres ni textos en reportes."""
+    import pandas as pd
+    from .indicadores import contar_menciones
+    from .config import PALABRAS_CLAVE
+
+    fin = pd.Timestamp(fecha_captura).normalize()
+    inicio = fin - pd.Timedelta(days=dias - 1)
+    resumen = {"positivas": 0, "negativas": 0, "neutras": 0, "total": 0,
+               "menciones": 0, "posteriores": 0, "desde": inicio, "hasta": fin}
+    try:
+        for bloque in pd.read_csv(ruta, compression="gzip", usecols=["date", "comments"],
+                                  chunksize=100000, dtype=str):
+            fechas = pd.to_datetime(bloque["date"], errors="coerce")
+            textos = bloque["comments"].fillna("").str.strip()
+            resumen["posteriores"] += int(fechas.gt(fin).sum())
+            muestra = textos.loc[fechas.between(inicio, fin) & textos.ne("")].tolist()
+            opinion = analizar_comentarios(muestra)
+            for clave in ("positivas", "negativas", "neutras"):
+                resumen[clave] += opinion[clave]
+            resumen["total"] += len(muestra)
+            resumen["menciones"] += contar_menciones(muestra, PALABRAS_CLAVE)
+    except (OSError, ValueError, KeyError) as error:
+        raise ValueError("No se pudo leer el archivo de reseñas de Inside Airbnb") from error
+    return resumen

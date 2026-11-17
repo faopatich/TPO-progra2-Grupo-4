@@ -7,26 +7,23 @@ DESTINOS = {
         "nombre": "Buenos Aires",
         "coordenadas": {"latitud": -34.6037, "longitud": -58.3816},
         "zona": "Centro",
-        "ocupacion_base": 58.0,
     },
     "mar del plata": {
         "nombre": "Mar del Plata",
         "coordenadas": {"latitud": -38.0055, "longitud": -57.5426},
         "zona": "Costa Atlántica",
-        "ocupacion_base": 45.0,
     },
     "mendoza": {
         "nombre": "Mendoza",
         "coordenadas": {"latitud": -32.8895, "longitud": -68.8458},
         "zona": "Cuyo",
-        "ocupacion_base": 52.0,
     },
 }
 
 # Estas colecciones centralizan datos que podrían cambiar. Así no quedan URLs,
-# palabras o destinatarios repetidos dentro de la lógica.
+# palabras repetidas dentro de la lógica.
 URLS_EVENTOS = [
-    "https://turismo.buenosaires.gob.ar/es/categoria-general/eventos2026",
+    "https://turismo.buenosaires.gob.ar/es/article/que-hacer-esta-semana",
 ]
 # La URL privada es ficticia y solo sirve para la comparación académica de N13.
 ENDPOINTS_API = {
@@ -35,9 +32,6 @@ ENDPOINTS_API = {
     "reservas_privada_ejemplo": "https://api.interna.example/reservas",
 }
 PALABRAS_CLAVE = ["festival", "feria", "museo", "gastronomía", "tango"]
-HOTELES_PILOTO = ["Hotel Centro", "Hotel Puerto", "Hotel Parque"]
-METRICAS = ["ocupacion_estimada", "variacion_demanda", "menciones", "prioridad"]
-DESTINATARIOS_BOLETIN = ["equipo.turismo@example.com"]
 
 # Umbrales usados por clasificacion.py. Se pueden ajustar sin reescribir los if.
 CRITERIOS_RECOMENDACION = {

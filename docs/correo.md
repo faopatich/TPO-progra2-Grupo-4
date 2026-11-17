@@ -12,28 +12,28 @@ Gmail requiere una cuenta que permita contraseñas de aplicación, habitualmente
 
 ## Prueba local
 
-La prueba automatizada sustituye el servidor SMTP por uno controlado. Para probar manualmente con el servidor local de los ejemplos de clase:
+Para probar manualmente con el servidor local de los ejemplos de clase:
 
 ```powershell
 python -m pip install aiosmtpd
 python -m aiosmtpd -n -l 127.0.0.1:1025
 ```
 
-En .env indicar SMTP_SERVER=127.0.0.1, SMTP_PORT=1025, SMTP_MODE=local, EMAIL_USER=demo@example.com y EMAIL_RECEIVER=prueba@example.com. Ejecutar python main.py --enviar. El servidor local muestra el mensaje; no lo entrega a Internet. El modo sin cifrado solo se admite para localhost.
+En .env indicar SMTP_SERVER=127.0.0.1, SMTP_PORT=1025, SMTP_MODE=local, EMAIL_USER=demo@example.com y EMAIL_RECEIVER=prueba@example.com. Ejecutar python main.py. El servidor local muestra el mensaje; no lo entrega a Internet. El modo sin cifrado solo se admite para localhost.
 
 ## Ejecución semanal en Windows
 
-El programa genera un boletín para la semana de lunes a domingo. Para automatizarlo, configurar una tarea en el Programador de tareas:
+El programa genera y envía un boletín para la semana de lunes a domingo. Use `--sin-enviar` para generar los reportes sin enviar correo. Para automatizarlo, configurar una tarea en el Programador de tareas:
 
 1. Crear una tarea con desencadenador semanal y elegir día y hora.
 2. Acción: iniciar el ejecutable Python del entorno virtual del proyecto.
-3. Argumentos: main.py --en-vivo --destino "Buenos Aires" --enviar.
+3. Argumentos: main.py --destino "CABA".
 4. Campo "Iniciar en": carpeta raíz del repositorio.
 5. Configurar .env y realizar primero un envío de prueba al propio correo.
 
-Para trabajar con datos propios, agregar --datos con la ruta de la carpeta. Sin ella, los archivos de base son demo y el mensaje lo indica. Si se elige otro destino sin agenda web, el resultado informa datos insuficientes. La tarea debe tener acceso a Internet y a los archivos del proyecto.
+Para trabajar con datos propios, agregar --datos con la ruta de la carpeta. Sin ella, se usan las fuentes reales configuradas y se informan los datos no disponibles. Si se elige otro destino sin agenda web, el resultado informa datos insuficientes. La tarea debe tener acceso a Internet y a los archivos del proyecto.
 
-No se instala una tarea ni se envía correo durante la preparación del código. Una ejecución manual adicional con --enviar produce otro envío: no hay un bloqueo de duplicados entre ejecuciones.
+No se instala una tarea ni se envía correo durante la preparación del código. Cada ejecución normal adicional produce otro envío: no hay un bloqueo de duplicados entre ejecuciones.
 
 ## Verificación del envío
 

@@ -8,21 +8,18 @@ from .normalizacion import normalizar_texto
 def calcular_ocupacion_estimada(
     ocupacion_base: float,
     cantidad_eventos: int,
-    menciones_positivas: int,
-    menciones_negativas: int,
     probabilidad_lluvia: float,
 ) -> float:
-    """Estima ocupación combinando actividad, reputación y riesgo de lluvia.
+    """Calcula un indicador académico con eventos y probabilidad de lluvia.
 
-    Cada evento suma 2 puntos, el saldo de reputación aporta 0,5 por comentario
-    y la lluvia descuenta 0,15 por cada punto porcentual de probabilidad.
+    Cada evento suma 2 puntos y la lluvia descuenta 0,15 por cada punto
+    porcentual de probabilidad. La reputación se informa por separado.
     El resultado queda limitado al intervalo válido de 0 a 100.
     """
     # Los operadores convierten variables distintas en un indicador común.
     estimacion = (
         ocupacion_base
         + cantidad_eventos * 2
-        + (menciones_positivas - menciones_negativas) * 0.5
         - probabilidad_lluvia * 0.15
     )
     # min aplica el techo de 100 y max evita ocupaciones negativas.

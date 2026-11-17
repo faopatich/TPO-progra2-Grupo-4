@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
+import re
 from time import sleep
 from urllib.parse import urljoin, urlparse
 from urllib.robotparser import RobotFileParser
@@ -180,6 +182,44 @@ def extraer_eventos(
         )
     return eventos
 
+
+
+def extraer_agenda_caba(html: str, url_base: str) -> list[Evento]:
+    """Lee el JSON público embebido en la agenda semanal oficial de CABA.
+
+    Se considera solo la fecha de inicio informada; una actividad que empezó
+    antes de la semana no se cuenta aunque continúe durante ella.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    for script in soup.find_all("script"):
+        contenido = script.string or script.get_text()
+        coincidencia = re.search(r"const\s+json\s*=\s*`(.*?)`", contenido, re.S)
+        if not coincidencia:
+            continue
+        try:
+            datos = json.loads(coincidencia.group(1))
+        except (ValueError, TypeError) as error:
+            raise ValueError("No se pudo interpretar la agenda de CABA") from error
+        if not isinstance(datos, list):
+            raise ValueError("Formato inesperado de agenda de CABA")
+        eventos = []
+        for dato in datos:
+            if not isinstance(dato, dict) or dato.get("categoria_actividad_filtro", "").strip().lower() != "evento":
+                continue
+            titulo = dato.get("nombre_actividad", "").strip()
+            fecha = dato.get("fecha_inicio", "").strip()
+            if not titulo or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", fecha):
+                continue
+            eventos.append(Evento(titulo=limpiar_titulo_evento(titulo), fecha=fecha,
+                direccion=limpiar_direccion(dato.get("calle_altura", "") or "No informada"),
+                enlace=urljoin(url_base, dato.get("url_boton") or url_base),
+                imagen=urljoin(url_base, dato["foto"]) if dato.get("foto") else None,
+                clases_html=(), identificador_html=None, datos_html={},
+                destino="Buenos Aires", fuente=url_base))
+        if not eventos:
+            raise ValueError("La agenda de CABA no contiene eventos con fecha reconocible")
+        return eventos
+    raise ValueError("No se encontró el JSON de la agenda de CABA")
 
 def demostrar_find_all(html: str) -> dict[str, int]:
     """Ejecuta las siete búsquedas de N12 y devuelve su cantidad de resultados.

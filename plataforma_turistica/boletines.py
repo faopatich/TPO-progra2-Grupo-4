@@ -6,6 +6,8 @@ import mimetypes
 import os
 import smtplib
 import ssl
+from html import escape
+import pandas as pd
 
 
 def validar_email(direccion: str) -> str:
@@ -21,10 +23,6 @@ def validar_email(direccion: str) -> str:
     return direccion
 
 
-def crear_cuerpo_boletin(destino: str, clasificacion: str, recomendacion: str) -> str:
-    return f"Resumen semanal de {destino}\nClasificación: {clasificacion}\nAcción: {recomendacion}"
-
-
 def crear_boletin(tablero, adjuntos: list[Path], advertencias: list[str],
                   remitente: str, destinatarios: list[str]) -> EmailMessage:
     """Crea el mensaje completo; no hace ninguna conexión de red."""
@@ -35,22 +33,44 @@ def crear_boletin(tablero, adjuntos: list[Path], advertencias: list[str],
     mensaje["To"] = ", ".join(validar_email(email) for email in destinatarios)
     semana = tablero["fecha"].iloc[0].strftime("%Y-%m-%d")
     mensaje["Subject"] = f"Boletín turístico semanal — {semana}"
-    lineas = ["Informe académico. La ocupación actual es una estimación por reglas.",
-              "Revisar las columnas de fuentes: los datos demo no son observaciones reales.", ""]
+    lineas = [f"Resumen de la semana desde {semana}",
+              "Indicadores académicos; la no disponibilidad puede incluir reservas y bloqueos. Detalle en los adjuntos.", ""]
+    partes_html = [f"<h2>Resumen turístico semanal</h2><p>Semana desde {semana}</p>",
+                   "<p>Indicadores académicos; la no disponibilidad puede incluir reservas y bloqueos. Detalle en los archivos adjuntos.</p>"]
     for _, fila in tablero.iterrows():
-        lineas.append(crear_cuerpo_boletin(fila["destino"], fila["clasificacion"], fila["recomendacion"]))
-        lineas.append(f"Fuentes: {fila['fuente_datos']}; clima {fila['fuente_clima']}; eventos {fila['fuente_eventos']}")
-        if fila["advertencias"]:
-            lineas.append(f"Aviso: {fila['advertencias']}")
-    lineas.extend(advertencias)
+        def mostrar(valor, sufijo=""):
+            if pd.isna(valor):
+                return "Sin datos"
+            return f"{valor:g}{sufijo}" if isinstance(valor, (int, float)) else f"{valor}{sufijo}"
+
+        fuente = str(fila.get("fuente_ocupacion", ""))
+        if "insideairbnb" in fuente:
+            captura = fila.get("captura_ocupacion")
+            referencia = "No disponibilidad Airbnb" + (f" (captura {captura})" if pd.notna(captura) else "")
+        else:
+            periodo = fila.get("periodo_ocupacion")
+            referencia = "Referencia histórica" + (f" ({periodo})" if pd.notna(periodo) and periodo not in ("sin datos", "no especificado") else "")
+        datos = [
+            (referencia, mostrar(fila["ocupacion_base"], "%")),
+            ("Eventos encontrados", mostrar(fila["eventos"])),
+            ("Probabilidad de lluvia", mostrar(fila["lluvia"], "%")),
+            ("Indicador estimado", mostrar(fila["ocupacion"], "%")),
+            ("Variación de la referencia", mostrar(fila["variacion"], "%")),
+            ("Menciones turísticas", mostrar(fila["menciones"])),
+            ("Clasificación", mostrar(fila["clasificacion"])),
+        ]
+        lineas.append(str(fila["destino"]))
+        lineas.extend(f"{nombre}: {valor}" for nombre, valor in datos)
+        lineas.append(f"Acción recomendada: {fila['recomendacion']}")
+        lineas.append("")
+        partes_html.append(f"<h3>{escape(str(fila['destino']))}</h3>")
+        partes_html.append('<table style="border-collapse:collapse">')
+        for nombre, valor in datos:
+            partes_html.append(f'<tr><th style="text-align:left;padding:4px 16px 4px 0">{escape(nombre)}</th><td>{escape(valor)}</td></tr>')
+        partes_html.append('</table>')
+        partes_html.append(f"<p><strong>Acción recomendada:</strong> {escape(str(fila['recomendacion']))}</p>")
     mensaje.set_content("\n".join(lineas))
-    columnas = ["destino", "eventos", "ocupacion", "variacion", "clasificacion",
-                "recomendacion", "fuente_datos", "fuente_clima", "fuente_eventos", "advertencias"]
-    mensaje.add_alternative(
-        "<h1>Boletín turístico semanal</h1><p>Informe académico. Revisar fuentes y avisos en el texto y reporte adjunto.</p>"
-        + tablero[columnas].to_html(index=False, escape=True, na_rep="Sin datos"),
-        subtype="html",
-    )
+    mensaje.add_alternative("".join(partes_html), subtype="html")
     for ruta in adjuntos:
         tipo = mimetypes.guess_type(ruta.name)[0] or "application/octet-stream"
         principal, subtipo = tipo.split("/", 1)

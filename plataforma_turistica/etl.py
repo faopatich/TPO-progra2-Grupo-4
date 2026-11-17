@@ -50,13 +50,14 @@ def limpiar_tablas(tablas: dict) -> dict:
 
 def limpiar_eventos(registros: list[dict], inicio: pd.Timestamp) -> pd.DataFrame:
     """Convierte fechas ISO y conserva solo los eventos de la semana del informe."""
-    columnas = ["destino", "titulo", "fecha", "direccion", "enlace", "imagen", "fuente"]
+    columnas = ["destino", "titulo", "fecha", "fecha_fin", "direccion", "enlace", "imagen", "fuente"]
     df = pd.DataFrame(registros).reindex(columns=columnas)
     df = df.dropna(subset=["destino", "titulo"])
     df["clave"] = df["destino"].astype(str).apply(normalizar_texto)
     df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
+    df["fecha_fin"] = pd.to_datetime(df["fecha_fin"], errors="coerce").fillna(df["fecha"])
     fin = inicio + pd.Timedelta(days=7)
-    df = df.loc[df["fecha"].ge(inicio) & df["fecha"].lt(fin)]
+    df = df.loc[df["fecha"].lt(fin) & df["fecha_fin"].ge(inicio)]
     return df.drop_duplicates(["clave", "titulo", "fecha", "enlace"]).reset_index(drop=True)
 
 

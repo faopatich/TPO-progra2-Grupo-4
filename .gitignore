@@ -6,3 +6,6 @@ __pycache__/
 !.env.example
 salida/
 .revision-deps/
+
+# Datos externos voluminosos: descargar una vez, no redistribuir
+datos/inside_airbnb/

@@ -1,43 +1,32 @@
 # Evidencia web para N08 y N09
 
-## Recurso inspeccionado
+## Fuente actual de eventos
 
-- Navegador: Microsoft Edge, con DevTools y la pestaña **Elements** para la inspección manual.
-- URL: `https://turismo.buenosaires.gob.ar/es/categoria-general/eventos2026`.
-- Protocolo: HTTPS.
-- Dominio DNS: `turismo.buenosaires.gob.ar`.
-- Dirección IPv4 resuelta el 11/09/2026: `200.16.89.120`. La IP puede cambiar; `web_info.py` permite volver a resolverla.
-- Finalidad: agenda oficial de eventos turísticos de la Ciudad de Buenos Aires.
-- Términos: el sitio del GCBA incluye al portal de turismo dentro de sus términos y publica su contenido con licencia Creative Commons Reconocimiento 2.5 Argentina. Esto no reemplaza la revisión de los términos vigentes antes de una ejecución real.
-- `robots.txt`: `eventos.descargar_html` lo consulta en cada ejecución. Ante un error o una prohibición, el programa no obtiene la página y usa el HTML académico local.
-- Frecuencia: una solicitud por ejecución, espera mínima de un segundo y `User-Agent` identificable.
+- URL inspeccionada: https://turismo.buenosaires.gob.ar/es/article/que-hacer-esta-semana
+- Protocolo: HTTPS. Dominio DNS: `turismo.buenosaires.gob.ar`.
+- Resolución DNS IPv4 realizada el 16/11/2026: `200.16.89.208`. Puede cambiar.
+- El 16/11/2026 se consultó el HTML con `requests` y se revisó su estructura con BeautifulSoup. Se observaron `html`, `head`, `body`, `div`, `a`, `img`, `span` y `script`; no se observaron tablas `table`, `tr` ni `td` en esa respuesta. Se observaron enlaces con `href` e imágenes con `src`.
+- La agenda de esta página incorpora la lista de actividades como JSON dentro de un `script`. El programa identifica ese contenido y obtiene título, fecha de inicio, dirección, enlace e imagen. CABA cuenta solo eventos con fecha de inicio en la semana; pueden faltar los ya iniciados.
+- `eventos.descargar_html` consulta `robots.txt`, identifica el agente y espera antes de solicitar la página. Si la página o las reglas no permiten obtenerla, el programa informa datos no disponibles; no sustituye eventos reales por demo.
 
-## Inspección HTML
+**Pendiente académico:** completar la inspección manual en el navegador que use el equipo (por ejemplo, Edge o Chrome, herramientas de desarrollador), registrar el navegador y guardar la evidencia. Si una etiqueta no existe en la página, indicarlo; no atribuir al sitio los elementos de `datos/eventos_demo.html`. La IP y el HTML pueden cambiar.
 
-En la página oficial se inspeccionaron la estructura principal, los contenedores de las tarjetas, sus enlaces e imágenes. Como el sitio puede cambiar su maquetado, `datos/eventos_demo.html` conserva las etiquetas necesarias para que la práctica y las pruebas sean estables:
+## Búsquedas HTML de la materia
 
-| Etiqueta | Uso observado o reproducido |
-| --- | --- |
-| `html`, `head`, `body` | estructura principal del documento |
-| `div` | contenedor de la agenda |
-| `article` | tarjeta de cada evento |
-| `table`, `tr`, `td` | resumen tabular de eventos |
-| `a` | enlace al detalle; atributos `href`, `title` y `data-id` |
-| `img` | imagen del evento; atributos `src` y `alt` |
-| `span` | título, fecha o dirección; atributo `class` |
+`eventos.inventario_html` cuenta etiquetas. `eventos.demostrar_find_all` muestra búsquedas por etiqueta, clase, id, atributo, texto, función y criterios combinados. `datos/eventos_demo.html` es una reproducción académica y no una captura del sitio oficial.
 
-Las tarjetas también exponen `id`, `class` y atributos `data-*`. El módulo `eventos.py` recupera texto, `href`, `src`, clases, identificadores y atributos de datos sin asumir que todos existen.
+Para ejecutar ambas prácticas desde la carpeta del proyecto (PowerShell):
 
-## API pública y API privada
+```powershell
+.\.venv\Scripts\python.exe -c "from pathlib import Path; from plataforma_turistica.eventos import inventario_html, demostrar_find_all; html = Path('datos/eventos_demo.html').read_text(encoding='utf-8'); print('Etiquetas:', inventario_html(html)); print('Búsquedas:', demostrar_find_all(html))"
+```
 
-Open-Meteo es la API pública elegida. Su endpoint está publicado en Internet, no necesita credenciales para el uso académico previsto y devuelve JSON meteorológico mediante GET.
+Este archivo de ejemplo sirve únicamente para practicar; no representa eventos reales.
 
-Una API privada o interna solo admite clientes autorizados por una organización. Puede exigir token, VPN y permisos por rol, y sus endpoints no se publican para consumo general. `config.py` contiene una URL interna ficticia únicamente para documentar la diferencia; el programa nunca la consulta.
+## Otras localidades
 
-## Alcance de la evidencia y cambios del portal
+La página nacional https://www.argentina.gob.ar/jefatura/turismo-y-ambiente/turismo/fiestas-y-eventos-de-argentina carga una planilla pública. `agenda_nacional.py` obtiene el CSV con `requests` y Pandas, filtra localidad y fecha, e identifica la fuente. Es una agenda parcial y no implica que no existan otros eventos. No se presenta esta consulta CSV como web scraping HTML.
 
-La inspección descrita arriba corresponde a la documentación previa del equipo; esta versión no vuelve a certificar la IP ni la estructura del sitio real. El HTML de demostración es una reproducción académica, no una captura del portal.
+## API pública y privada
 
-El ejemplo local ahora identifica cada tarjeta con data-destino y guarda una fecha ISO en time datetime. Recuperar ese atributo permite convertir fechas con pd.to_datetime y filtrar la semana. La agenda de Buenos Aires solo se consulta para Buenos Aires. Las otras ciudades necesitan una fuente propia o un archivo con sus eventos.
-
-Si robots.txt bloquea el acceso, la página falla, no se reconocen tarjetas o todas sus fechas son inválidas, el programa informa la limitación. En vivo no reemplaza esas fuentes por datos demo. Los enlaces example.org y sus imágenes son atributos para practicar extracción: no se descargan y no representan eventos reales.
+Open-Meteo es la API pública para clima. Una API privada o interna está limitada a clientes autorizados y puede exigir token, VPN y permisos. La URL interna de `config.py` es ficticia y solo ilustra la diferencia; no se consulta.
