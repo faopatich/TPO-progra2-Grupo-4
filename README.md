@@ -26,7 +26,7 @@ Los archivos de Inside Airbnb se descargan **una vez**, se guardan localmente y 
 | [reviews.csv.gz — reseñas detalladas de CABA](https://data.insideairbnb.com/argentina/ciudad-aut%C3%B3noma-de-buenos-aires/buenos-aires/2026-09-23/data/reviews.csv.gz) | `datos/inside_airbnb/reviews.csv.gz` | Necesario para el análisis de reputación real de CABA. Si falta, se informa que no está disponible. |
 | [EOH: anexo de cuadros del INDEC](https://www.indec.gob.ar/ftp/cuadros/economia/EOH_cuadros_dic25.zip) | `datos/eoh_cuadros_2025.zip` | Referencia de ocupación hotelera para otras localidades relevadas. Si ya está en el proyecto, no hace falta descargarlo nuevamente. |
 
-**No descomprimir ni renombrar los archivos de Airbnb.** El ZIP de la EOH también se conserva comprimido y debe tener el nombre indicado en la tabla. Los dos archivos de Airbnb son de la captura identificada como **23/09/2026**; el código tiene esa fecha configurada. Si se sustituye una captura por otra, hay que revisar y actualizar `CAPTURA_AIRBNB` en `plataforma_turistica/ocupacion.py`. Los archivos de Airbnb están excluidos de Git, por lo que deben copiarse o descargarse en cada computadora. Según la [política de Inside Airbnb](https://insideairbnb.com/data-policies/), no deben redistribuirse y debe citarse la fuente.
+**No descomprimir ni renombrar los archivos de Airbnb.** El ZIP de la EOH también se conserva comprimido y debe tener el nombre indicado en la tabla. Los dos archivos de Airbnb son de la captura identificada como **23/09/2026**; el código tiene esa fecha configurada. Si se sustituye una captura por otra, hay que revisar y actualizar `CAPTURA_AIRBNB` en `plataforma_turistica/ocupacion.py`. Los archivos de Airbnb están excluidos de Git, por lo que deben copiarse o descargarse en cada computadora. La [política de Inside Airbnb](https://insideairbnb.com/data-policies/) solicita no republicar los datos y citar la fuente; sus datos públicos se ofrecen con licencia CC BY 4.0. Los enlaces pueden cambiar cuando la captura se archive: si dejan de funcionar, consultar [Get the Data](https://insideairbnb.com/get-the-data/) y sus condiciones de acceso a archivos históricos.
 
 La carpeta debe quedar así:
 
@@ -73,6 +73,12 @@ Para Gmail, activar la verificación en dos pasos y generar una **contraseña de
 
 `.env` contiene credenciales y está excluido de Git: cada integrante debe crear su propio archivo y no compartirlo. Si ya existe `.env`, editarlo directamente y **no volver a copiar** `.env.example` encima. `OPENWEATHER_API_KEY` solo es necesaria si se utiliza OpenWeatherMap; Open-Meteo no requiere esa clave.
 
+### Protocolos y envío semanal
+
+El proyecto usa `EmailMessage` para preparar el mensaje y `smtplib` con **SMTP** para enviarlo. **POP** e **IMAP** se usan para recibir o consultar mensajes y no son necesarios para el envío. Para Gmail se usa SSL con el puerto 465 y una contraseña de aplicación; el proyecto no implementa OAuth.
+
+Para automatizar un envío semanal en Windows, crear una tarea en el Programador de tareas con un desencadenador semanal. Como acción, elegir el ejecutable `python.exe` del entorno `.venv`, indicar `main.py --destino "CABA"` como argumentos y establecer la carpeta raíz del proyecto en **Iniciar en**. Configurar primero `.env`, los archivos de datos e Internet, y comprobar la recepción del mensaje y los adjuntos. Cada ejecución intenta un envío nuevo. El programa no crea la tarea automáticamente.
+
 ## Ejecutar el análisis
 
 Para generar los reportes de CABA **sin enviar correo**:
@@ -107,7 +113,7 @@ Cada ejecución guarda sus resultados en `salida/AAAA-MM-DD/AAAAMMDD_HHMMSS_micr
 - `reporte.xlsx`: tablero, eventos e histórico en hojas separadas.
 - `eventos.csv` e `historico.csv`: detalle usado en el análisis.
 - `ocupacion.png`, `tendencia.png` y `reputacion.png`: gráficos generados con Pandas cuando hay datos suficientes.
-- `boletin.eml`: correo con un resumen sencillo y los reportes y gráficos adjuntos, cuando están configurados remitente y destinatarios.
+- `boletin.eml`: vista del correo con los reportes y gráficos adjuntos. Se guarda al ejecutar `main.py` cuando están configurados remitente y destinatarios; la API envía el mensaje pero no guarda este archivo.
 
 ## Fuentes e interpretación de los resultados
 
@@ -198,7 +204,7 @@ Para que el mismo POST genere los reportes y envíe el boletín, configurar el c
 }
 ```
 
-La API ejecuta el análisis una sola vez, guarda los reportes y gráficos disponibles en una carpeta propia dentro de `salida/AAAA-MM-DD/` y los adjunta al correo enviado a `EMAIL_RECEIVER`. La respuesta indica `"correo_enviado": true` después de que el servidor SMTP acepta el mensaje. Si el envío falla, devuelve un error HTTP 502; un archivo Airbnb faltante produce 503 y una solicitud con datos inválidos puede producir 400. Cada POST con `enviar_correo: true` intenta un nuevo envío. Si se omite o se indica `false`, solo se consulta el análisis: no genera archivos ni envía correo. El GET nunca envía correo. La API usa Open-Meteo para el clima. Detener el servidor con `Ctrl + C` en la terminal.
+La API ejecuta el análisis una sola vez, guarda los reportes y gráficos disponibles en una carpeta propia dentro de `salida/AAAA-MM-DD/` y los adjunta al correo enviado a `EMAIL_RECEIVER`. La respuesta indica `"correo_enviado": true` después de que el servidor SMTP acepta el mensaje. Si falla la generación de los archivos o el envío, devuelve un error HTTP 502; un calendario Airbnb faltante produce 503, un error de análisis puede producir 400 y un JSON que no cumple el formato esperado puede producir 422. Cada POST con `enviar_correo: true` intenta un nuevo envío. Si se omite o se indica `false`, solo se consulta el análisis: no genera archivos ni envía correo. El GET nunca envía correo. La API usa Open-Meteo para el clima. Detener el servidor con `Ctrl + C` en la terminal.
 
 ### Usar OpenWeatherMap
 
@@ -221,7 +227,7 @@ Para practicar por separado el consumo autenticado en JSON y XML:
 .\.venv\Scripts\python.exe -m plataforma_turistica.practica_api --formato xml
 ```
 
-Los comandos de JSON y XML muestran el resultado de la consulta en la terminal; no generan el tablero ni envían correo. OpenWeatherMap aporta el próximo intervalo de tres horas; Open-Meteo usa temperatura actual y probabilidad máxima diaria, por lo que los valores no necesariamente coinciden.
+Los comandos de JSON y XML muestran el resultado de la consulta en la terminal; no generan el tablero ni envían correo. Requieren conexión y una clave activa de OpenWeatherMap. OpenWeatherMap aporta el próximo intervalo de tres horas; Open-Meteo usa temperatura actual y probabilidad máxima diaria, por lo que los valores no necesariamente coinciden.
 
 GET consulta información; POST envía datos para solicitar un análisis. PUT serviría para reemplazar una configuración completa, PATCH para modificar una parte y DELETE para eliminarla.
 
@@ -244,7 +250,7 @@ Todos los archivos de la tabla, salvo `main.py`, están dentro de `plataforma_tu
 | `api.py`, `esquemas.py`, `resultado.py` | API FastAPI y formato de entradas y respuestas. |
 | `practica_api.py` | Consulta autenticada JSON/XML y cliente POST local. |
 
-La documentación complementaria está en `docs/evidencia_web.md` y `docs/correo.md`. El análisis normal no utiliza el HTML de ejemplo como si fuera una fuente real.
+La documentación complementaria de inspección web está en `docs/evidencia_web.md`. El análisis normal no utiliza el HTML de ejemplo como si fuera una fuente real.
 
 ## Relación con los requisitos
 
@@ -256,10 +262,10 @@ Los nombres de módulos de la tabla se encuentran en `plataforma_turistica/`; lo
 | N02 | Ocupación estimada, variación, menciones y prioridad | `ocupacion.py`, `indicadores.py`, `analisis.py`. |
 | N03 | Clasificación y recomendaciones | `clasificacion.py`, `config.py`. |
 | N04 | Funciones de limpieza, fechas, clima e indicadores | `normalizacion.py`, `eventos.py`, `clima.py`, `indicadores.py`. |
-| N05 | Listas de destinos, URL, palabras y destinatarios | `config.py`, `destinos.py`, `main.py`, `datos.py`. Los hoteles se leen de archivos propios. |
+| N05 | Listas de destinos, URL, palabras y destinatarios | `config.py`, `destinos.py`, `main.py`, `datos.py`. Los hoteles se leen de archivos propios; no hay una lista activa de hoteles piloto ni de métricas configurables. |
 | N06 | Diccionarios | `config.py`, `destinos.py`. |
 | N07 | Normalización de cadenas | `normalizacion.py`, `etl.py`, `reputacion.py`. |
-| N08 | Navegador, URL, DNS e IP | `docs/evidencia_web.md`. |
+| N08 | Navegador, URL, DNS e IP | `docs/evidencia_web.md`. Falta registrar el navegador usado en la inspección manual. |
 | N09 | Inspección del HTML | `docs/evidencia_web.md`, `eventos.py`. La inspección manual en navegador debe registrarse como evidencia. |
 | N10 | Web scraping y acceso responsable | `eventos.py`, `agenda_servicio.py`. |
 | N11 | Texto y atributos HTML | `eventos.py`, `docs/evidencia_web.md`. |
@@ -275,7 +281,7 @@ Los nombres de módulos de la tabla se encuentran en `plataforma_turistica/`; lo
 | N21 | Lectura y exportación de formatos | `datos.py`, `etl.py`, `ocupacion.py`. |
 | N22 | Agrupaciones, fechas, uniones y comparación | `etl.py`, `referencias.py`, `ocupacion.py`. |
 | N23 | Gráficos con Pandas | `visualizacion.py`. |
-| N24 | Correo, adjuntos y SMTP | `boletines.py`, `main.py`, `api.py`, `docs/correo.md`. |
-| N25 | SMTP, POP, IMAP y acceso a Gmail | `docs/correo.md`, `boletines.py`. |
+| N24 | Correo, adjuntos y SMTP | `boletines.py`, `main.py`, `api.py` y la sección de correo de este README. |
+| N25 | SMTP, POP, IMAP y acceso a Gmail | `boletines.py` y la sección de correo de este README. |
 
-Para la demostración final se debe registrar la inspección manual del HTML y verificar la entrega real de un correo con sus adjuntos. El envío automático semanal requiere configurar el Programador de tareas de Windows como se explica en `docs/correo.md`. Las fuentes externas pueden cambiar o estar temporalmente no disponibles.
+Para la demostración final se debe registrar la inspección manual del HTML y verificar la entrega real de un correo con sus adjuntos. El envío automático semanal requiere configurar el Programador de tareas de Windows como se explica en la sección de correo de este README. Las fuentes externas pueden cambiar o estar temporalmente no disponibles.
